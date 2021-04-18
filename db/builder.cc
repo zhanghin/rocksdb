@@ -15,6 +15,7 @@
 
 #include "db/compaction/compaction_iterator.h"
 #include "db/dbformat.h"
+#include "db/log_format.h"
 #include "db/event_helpers.h"
 #include "db/internal_stats.h"
 #include "db/merge_helper.h"
@@ -101,8 +102,8 @@ Status BuildTable(
   std::string fname = TableFileName(ioptions.cf_paths, meta->fd.GetNumber(),
                                     meta->fd.GetPathId());
 
-  fprintf(stdout, "BuildTable num: %lu, path: %u, dup_path: %u.\n", meta->fd.GetNumber(),
-        meta->fd.GetPathId(), meta->fd.GetDupPathId());
+  //fprintf(stdout, "BuildTable num: %lu, path: %u, dup_path: %u.\n", meta->fd.GetNumber(),
+  //      meta->fd.GetPathId(), meta->fd.GetDupPathId());
 
 #ifndef ROCKSDB_LITE
   EventHelpers::NotifyTableFileCreationStarted(
@@ -263,46 +264,46 @@ Status BuildTable(
       job_id, meta->fd, tp, reason, s);
 
   if (is_double_write) {
-      std::string dup_fname = DupTableFileName(ioptions.cf_paths, meta->fd.GetNumber(),
-                                   meta->fd.GetDupPathId());
-      std::unique_ptr<WritableFile> dup_file;
-      WritableFileWriter* dup_file_writer = nullptr;
-      /*
-      EventHelpers::NotifyTableFileCreationStarted(
-          ioptions.listeners, dbname, column_family_name, dup_fname, job_id, reason);
-      */
-      s = NewWritableFile(env, dup_fname, &dup_file, env_options);
-      if (!s.ok()) {
-        /*
-        EventHelpers::LogAndNotifyTableFileCreationFinished(
-            event_logger, ioptions.listeners, dbname, column_family_name, dup_fname,
-            job_id, meta->fd, tp, reason, s);
-        */
-        return s;
-      }
-      dup_file->SetIOPriority(io_priority);
-      dup_file->SetWriteLifeTimeHint(write_hint);
-      dup_file_writer = new WritableFileWriter(std::move(dup_file), dup_fname, env_options, env,
-                                               ioptions.statistics, ioptions.listeners);
+    std::string dup_fname = DupTableFileName(ioptions.cf_paths, meta->fd.GetNumber(),
+                                 meta->fd.GetDupPathId());
+    std::unique_ptr<WritableFile> dup_file;
+    WritableFileWriter* dup_file_writer = nullptr;
+    /*
+    EventHelpers::NotifyTableFileCreationStarted(
+        ioptions.listeners, dbname, column_family_name, dup_fname, job_id, reason);
+    */
+    s = NewWritableFile(env, dup_fname, &dup_file, env_options);
+    if (!s.ok()) {
       /*
       EventHelpers::LogAndNotifyTableFileCreationFinished(
-          event_logger, ioptions.listeners, dbname, column_family_name, fname,
+          event_logger, ioptions.listeners, dbname, column_family_name, dup_fname,
           job_id, meta->fd, tp, reason, s);
       */
+      return s;
+    }
+    dup_file->SetIOPriority(io_priority);
+    dup_file->SetWriteLifeTimeHint(write_hint);
+    dup_file_writer = new WritableFileWriter(std::move(dup_file), dup_fname, env_options, env,
+                                             ioptions.statistics, ioptions.listeners);
+    /*
+    EventHelpers::LogAndNotifyTableFileCreationFinished(
+        event_logger, ioptions.listeners, dbname, column_family_name, fname,
+        job_id, meta->fd, tp, reason, s);
+    */
 
     std::unique_ptr<SequentialFile> reader;
     SequentialFileReader *file_reader = nullptr;
-    Status status;
-    status = env->NewSequentialFile(dup_fname, &reader, env->OptimizeForCompactionTableRead(env_options));
-    if (!status.ok()) {
-      return status;
+    s = env->NewSequentialFile(fname, &reader, env_options); // OptimizeForCompactionTableRead
+    if (!s.ok()) {
+      return s;
     }
-  
-    file_reader = new SequentialFileReader(std::move(reader), dup_fname, log::kBlockSize);
 
-    SstCopyArg* fca = new SstCopyArg(dup_outfile, file_reader);
-    env->Schedule(&BlockBasedTableBuilder::BGWorkSstCopy, fca, Env::Priority::HIGH, this,
+    file_reader = new SequentialFileReader(std::move(reader), fname, log::kBlockSize);
+
+    SstCopyArg* sca = new SstCopyArg(dup_file_writer, file_reader, ioptions.use_fsync);
+    env->Schedule(&BlockBasedTableBuilder::BGWorkSstCopy, sca, Env::Priority::HIGH, nullptr,
                   &BlockBasedTableBuilder::UnscheduleSstCopyCallBack);
+    fprintf(stdout, "schedule1 %s.\n", dup_fname.c_str());
   }
   return s;
 }

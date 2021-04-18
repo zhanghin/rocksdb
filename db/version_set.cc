@@ -748,13 +748,13 @@ Version::~Version() {
         assert(cfd_ != nullptr);
         uint32_t path_id = f->fd.GetPathId();
         uint32_t dup_path_id = f->fd.GetDupPathId();
-        fprintf(stdout, "~Version DupPathId: %u, level: %d, num: %lu.\n", dup_path_id, level, f->fd.GetNumber());
+        //fprintf(stdout, "~Version DupPathId: %u, level: %d, num: %lu.\n", dup_path_id, level, f->fd.GetNumber());
         assert(path_id < cfd_->ioptions()->cf_paths.size());
         vset_->obsolete_files_.push_back(
             ObsoleteFileInfo(f, cfd_->ioptions()->cf_paths[path_id].path,
             dup_path_id != kDisablePathId ? cfd_->ioptions()->cf_paths[dup_path_id].path : ""));
         if (dup_path_id != kDisablePathId) {
-          fprintf(stdout, "dup_path: %s.\n", cfd_->ioptions()->cf_paths[dup_path_id].path.c_str());
+          //fprintf(stdout, "dup_path: %s.\n", cfd_->ioptions()->cf_paths[dup_path_id].path.c_str());
         }
       }
     }
@@ -5211,7 +5211,16 @@ void VersionSet::GetLiveFilesMetaData(std::vector<LiveFileMetaData>* metadata) {
           assert(!cfd->ioptions()->cf_paths.empty());
           filemetadata.db_path = cfd->ioptions()->cf_paths.back().path;
         }
+        uint32_t dup_path_id = file->fd.GetDupPathId();
+        if (dup_path_id < cfd->ioptions()->cf_paths.size()) {
+          filemetadata.dup_db_path = cfd->ioptions()->cf_paths[dup_path_id].path;
+        } else {
+          assert(!cfd->ioptions()->cf_paths.empty());
+          filemetadata.dup_db_path = cfd->ioptions()->cf_paths.back().path;
+        }
+
         filemetadata.name = MakeTableFileName("", file->fd.GetNumber());
+        filemetadata.dup_name = MakeDupTableFileName("", file->fd.GetNumber());
         filemetadata.level = level;
         filemetadata.size = static_cast<size_t>(file->fd.GetFileSize());
         filemetadata.smallestkey = file->smallest.user_key().ToString();

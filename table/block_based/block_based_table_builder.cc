@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "db/dbformat.h"
+#include "db/log_format.h"
 #include "index_builder.h"
 
 #include "rocksdb/cache.h"
@@ -493,7 +494,7 @@ BlockBasedTableBuilder::~BlockBasedTableBuilder() {
   // Catch errors where caller forgot to call Finish()
   assert(rep_->state == Rep::State::kClosed);
   //fprintf(stdout, "%s ~BlockBasedTableBuilder.\n", rep_->file->file_name().c_str());
-  fprintf(stdout, "~BlockBasedTableBuilder.\n");
+  //fprintf(stdout, "~BlockBasedTableBuilder.\n");
   delete rep_;
 }
 
@@ -723,28 +724,36 @@ void BlockBasedTableBuilder::BGWorkSstCopy(void* arg) {
 
   //IOSTATS_SET_THREAD_POOL_ID(Env::Priority::HIGH);
   TEST_SYNC_POINT("BlockBasedTableBuilder::BGWorkSstCopy");
+  fprintf(stdout, "%s copy begin.\n", sca->writer->file_name().c_str());
 
   Status s;
   Slice result;
-  size_t block_size = static_cast<size_t>(rocksdb::log::kBlockSize);
+  size_t block_size = static_cast<size_t>(log::kBlockSize);
   char *scratch = new char[block_size];
-  
+  uint64_t read_bytes = 0, read_counts = 0, write_counts = 0;
+
   while (true) {
     s = sca->reader->Read(block_size, &result, scratch);
     if (!s.ok()) {
       fprintf(stdout, "BGWorkSstCopy read: %s.\n", s.ToString().c_str());
       break;
     }
+    read_counts++;
     s = sca->writer->Append(result);
     if (!s.ok()) {
       fprintf(stdout, "BGWorkSstCopy write: %s.\n", s.ToString().c_str());
       break;
     }
-
+    write_counts++;
+    read_bytes += result.size();
     if (result.size() < block_size) { // end of file
       break;
     }
   }
+  fprintf(stdout, "read count: %lu, bytes: %lu, write counts: %lu.\n", read_counts, read_bytes, write_counts);
+
+  sca->writer->Sync(sca->use_fsync);
+  sca->writer->Close();
 
   delete sca;
   TEST_SYNC_POINT("BlockBasedTableBuilder::BGWorkSstCopy:done");
@@ -1231,18 +1240,13 @@ bool BlockBasedTableBuilder::NeedCompact() const {
 }
 
 TableProperties BlockBasedTableBuilder::GetTableProperties() const {
-  fprintf(stdout, "GetTableProperties1.\n");
   TableProperties ret = rep_->props;
-  fprintf(stdout, "GetTableProperties2.\n");
   for (const auto& collector : rep_->table_properties_collectors) {
     for (const auto& prop : collector->GetReadableProperties()) {
       ret.readable_properties.insert(prop);
     }
-    fprintf(stdout, "GetTableProperties3.\n");
     collector->Finish(&ret.user_collected_properties);
-    fprintf(stdout, "GetTableProperties4.\n");
   }
-  fprintf(stdout, "GetTableProperties5.\n");
   return ret;
 }
 
