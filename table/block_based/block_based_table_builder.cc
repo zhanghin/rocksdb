@@ -751,7 +751,6 @@ void BlockBasedTableBuilder::BGWorkSstCopy(void* arg) {
     }
   }
   fprintf(stdout, "read count: %lu, bytes: %lu, write counts: %lu.\n", read_counts, read_bytes, write_counts);
-
   sca->writer->Sync(sca->use_fsync);
   sca->writer->Close();
 
