@@ -431,8 +431,13 @@ ThreadPoolImpl::~ThreadPoolImpl() {
 }
 
 void ThreadPoolImpl::JoinAllThreads() {
+<<<<<<< HEAD
   impl_->JoinThreads(false);
   //impl_->JoinThreads(true);
+=======
+  //impl_->JoinThreads(false);
+  impl_->JoinThreads(true);
+>>>>>>> 89e7c9566 (sleep before exit rocksdb in order to schedule dupsst write)
 }
 
 void ThreadPoolImpl::SetBackgroundThreads(int num) {
