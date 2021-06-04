@@ -97,6 +97,16 @@ struct ThreadPoolImpl::Impl {
   // Set the thread priority.
   void SetThreadPriority(Env::Priority priority) { priority_ = priority; }
 
+  void SetPriority(int prio = 0) {
+    std::lock_guard<std::mutex> lock(mu_);
+    prio_ = prio;
+    prio_changed_ = true;
+  }
+
+  int GetPriority() {
+    return prio_;
+  }
+
 private:
 
   static void* BGThreadWrapper(void* arg);
@@ -104,6 +114,8 @@ private:
   bool low_io_priority_;
   bool low_cpu_priority_;
   Env::Priority priority_;
+  int prio_;
+  bool prio_changed_;
   Env*         env_;
 
   int total_threads_limit_;
@@ -133,6 +145,8 @@ ThreadPoolImpl::Impl::Impl()
       low_io_priority_(false),
       low_cpu_priority_(false),
       priority_(Env::LOW),
+      prio_(0),
+      prio_changed_(false),
       env_(nullptr),
       total_threads_limit_(0),
       queue_len_(),
@@ -228,6 +242,13 @@ void ThreadPoolImpl::Impl::BGThread(size_t thread_id) {
 
     bool decrease_io_priority = (low_io_priority != low_io_priority_);
     bool decrease_cpu_priority = (low_cpu_priority != low_cpu_priority_);
+    bool prio_changed = false;
+    int prio = 0;
+    if (prio_changed_) {
+      prio = prio_;
+      prio_changed = true;
+      prio_changed_ = false;
+    }
     lock.unlock();
 
 #ifdef OS_LINUX
@@ -238,7 +259,18 @@ void ThreadPoolImpl::Impl::BGThread(size_t thread_id) {
           0,
           // Lowest priority possible.
           19);
+      fprintf(stdout, "getpriority %d.\n", getpriority(PRIO_PROCESS, 0));
       low_cpu_priority = true;
+    }
+
+    if (prio_changed) {
+      fprintf(stdout, "setpriority to %d.\n", prio);
+      setpriority(
+          PRIO_PROCESS,
+          // Current thread.
+          0,
+          prio);
+      fprintf(stdout, "getpriority %d.\n", getpriority(PRIO_PROCESS, 0));
     }
 
     if (decrease_io_priority) {
@@ -500,8 +532,17 @@ void ThreadPoolImpl::SetThreadPriority(Env::Priority priority) {
   impl_->SetThreadPriority(priority);
 }
 
+void ThreadPoolImpl::SetPriority(int prio) {
+  impl_->SetPriority(prio);
+}
+
+int ThreadPoolImpl::GetPriority() {
+  return impl_->GetPriority();
+}
+
 ThreadPool* NewThreadPool(int num_threads) {
   ThreadPoolImpl* thread_pool = new ThreadPoolImpl();
+  fprintf(stdout, "NewThreadPool %d to %d.\n", thread_pool->GetBackgroundThreads(), num_threads);
   thread_pool->SetBackgroundThreads(num_threads);
   return thread_pool;
 }

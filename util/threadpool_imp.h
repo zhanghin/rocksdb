@@ -89,6 +89,10 @@ class ThreadPoolImpl : public ThreadPool {
   // Set the thread priority.
   void SetThreadPriority(Env::Priority priority);
 
+  void SetPriority(int prio = 0);
+
+  int GetPriority();
+
   static void PthreadCall(const char* label, int result);
 
   struct Impl;

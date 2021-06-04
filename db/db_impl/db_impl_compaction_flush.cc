@@ -9,6 +9,8 @@
 #include "db/db_impl/db_impl.h"
 
 #include <cinttypes>
+#include <thread>
+#include <iostream>
 
 #include "db/builder.h"
 #include "db/error_handler.h"
@@ -1902,6 +1904,11 @@ void DBImpl::MaybeScheduleFlushOrCompaction() {
     // DB is being deleted; no more background compactions
     return;
   }
+
+  //fprintf(stdout, "USER: %d, HIGH: %d, LOW: %d, BOTTOM: %d.\n",
+    //env_->GetBackgroundThreads(Env::Priority::USER), env_->GetBackgroundThreads(Env::Priority::HIGH),
+    //env_->GetBackgroundThreads(Env::Priority::LOW), env_->GetBackgroundThreads(Env::Priority::BOTTOM));
+
   auto bg_job_limits = GetBGJobLimits();
   bool is_flush_pool_empty =
       env_->GetBackgroundThreads(Env::Priority::HIGH) == 0;
@@ -2009,6 +2016,7 @@ ColumnFamilyData* DBImpl::PopFirstFromCompactionQueue() {
 
 DBImpl::FlushRequest DBImpl::PopFirstFromFlushQueue() {
   assert(!flush_queue_.empty());
+  //fprintf(stdout, "flush queue len: %ld.\n", flush_queue_.size());
   FlushRequest flush_req = flush_queue_.front();
   assert(unscheduled_flushes_ >= static_cast<int>(flush_req.size()));
   unscheduled_flushes_ -= static_cast<int>(flush_req.size());
@@ -2072,6 +2080,7 @@ void DBImpl::SchedulePendingPurge(std::string fname, std::string dir_to_sync,
 }
 
 void DBImpl::BGWorkFlush(void* arg) {
+  //std::cout << "BGWorkFlush---------begin thread id: " << std::this_thread::get_id() << std::endl;
   FlushThreadArg fta = *(reinterpret_cast<FlushThreadArg*>(arg));
   delete reinterpret_cast<FlushThreadArg*>(arg);
 
@@ -2079,6 +2088,7 @@ void DBImpl::BGWorkFlush(void* arg) {
   TEST_SYNC_POINT("DBImpl::BGWorkFlush");
   reinterpret_cast<DBImpl*>(fta.db_)->BackgroundCallFlush(fta.thread_pri_);
   TEST_SYNC_POINT("DBImpl::BGWorkFlush:done");
+  //std::cout << "BGWorkFlush---------end thread id: " << std::this_thread::get_id() << std::endl;
 }
 
 void DBImpl::BGWorkCompaction(void* arg) {
@@ -2160,8 +2170,11 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
     superversion_contexts.clear();
     superversion_contexts.reserve(flush_req.size());
 
+    //fprintf(stdout, "flushreq size: %lu.\n", flush_req.size());
+    //std::cout << "thread id: " << std::this_thread::get_id() << std::endl;
     for (const auto& iter : flush_req) {
       ColumnFamilyData* cfd = iter.first;
+      //fprintf(stdout, "cfd id: %u.\n", cfd->GetID());
       if (cfd->IsDropped() || !cfd->imm()->IsFlushPending()) {
         // can't flush this CF, try next one
         column_families_not_to_flush.push_back(cfd);

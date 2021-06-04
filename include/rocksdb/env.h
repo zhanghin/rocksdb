@@ -364,6 +364,8 @@ class Env {
   // Priority for requesting bytes in rate limiter scheduler
   enum IOPriority { IO_LOW = 0, IO_HIGH = 1, IO_TOTAL = 2 };
 
+  virtual void SetPriority(Priority pri, int prio) {};
+
   // Arrange to run "(*function)(arg)" once in a background thread, in
   // the thread pool specified by pri. By default, jobs go to the 'LOW'
   // priority thread pool.

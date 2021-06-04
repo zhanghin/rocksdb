@@ -827,6 +827,8 @@ class PosixEnv : public Env {
   }
 #endif  // !ROCKSDB_NO_DYNAMIC_EXTENSION
 
+  void SetPriority(Priority pri, int prio) override;
+
   void Schedule(void (*function)(void* arg1), void* arg, Priority pri = LOW,
                 void* tag = nullptr,
                 void (*unschedFunction)(void* arg) = nullptr) override;
@@ -988,11 +990,13 @@ class PosixEnv : public Env {
   // Allow increasing the number of worker threads.
   void SetBackgroundThreads(int num, Priority pri) override {
     assert(pri >= Priority::BOTTOM && pri <= Priority::HIGH);
+    fprintf(stdout, "SetBackgroundThreads, %d to %d.\n", 
+        thread_pools_[pri].GetBackgroundThreads(), num);
     thread_pools_[pri].SetBackgroundThreads(num);
   }
 
   int GetBackgroundThreads(Priority pri) override {
-    assert(pri >= Priority::BOTTOM && pri <= Priority::HIGH);
+    assert(pri >= Priority::BOTTOM && pri <= Priority::USER);
     return thread_pools_[pri].GetBackgroundThreads();
   }
 
@@ -1003,7 +1007,9 @@ class PosixEnv : public Env {
 
   // Allow increasing the number of worker threads.
   void IncBackgroundThreadsIfNeeded(int num, Priority pri) override {
-    assert(pri >= Priority::BOTTOM && pri <= Priority::HIGH);
+    assert(pri >= Priority::BOTTOM && pri <= Priority::USER);
+    fprintf(stdout, "IncBackgroundThreadsIfNeeded %d to %d.\n",
+        thread_pools_[pri].GetBackgroundThreads(), num);
     thread_pools_[pri].IncBackgroundThreadsIfNeeded(num);
   }
 
@@ -1128,6 +1134,11 @@ PosixEnv::PosixEnv()
     thread_pools_[pool_id].SetHostEnv(this);
   }
   thread_status_updater_ = CreateThreadStatusUpdater();
+}
+
+void PosixEnv::SetPriority(Priority pri, int prio) {
+  fprintf(stdout, "SetPriority, %d to %d.\n", thread_pools_[pri].GetPriority(), prio);
+  thread_pools_[pri].SetPriority(prio);
 }
 
 void PosixEnv::Schedule(void (*function)(void* arg1), void* arg, Priority pri,

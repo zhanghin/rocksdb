@@ -1139,6 +1139,12 @@ DEFINE_bool(
 DEFINE_int32(memtable_insert_with_hint_prefix_size, 0,
              "If non-zero, enable "
              "memtable insert with hint with the given prefix size.");
+
+DEFINE_string(db_paths, "", "The path for L0 and L1 sst files");
+DEFINE_string(db_paths2, "", "The path for L2 and upper level sst files");
+
+DEFINE_bool(enable_set_cpu_prio, false, "Set the background flush/compaction "
+            "threads' CPU priority");
 DEFINE_bool(enable_io_prio, false, "Lower the background flush/compaction "
             "threads' IO priority");
 DEFINE_bool(enable_cpu_prio, false, "Lower the background flush/compaction "
@@ -3450,6 +3456,12 @@ class Benchmark {
     options.use_direct_reads = FLAGS_use_direct_reads;
     options.use_direct_io_for_flush_and_compaction =
         FLAGS_use_direct_io_for_flush_and_compaction;
+    if (FLAGS_db_paths.length() && FLAGS_db_paths2.length()) {
+      options.db_paths = std::vector<rocksdb::DbPath>();
+      options.db_paths.push_back(rocksdb::DbPath(FLAGS_db_paths, 2l * FLAGS_max_bytes_for_level_base));
+      options.db_paths.push_back(rocksdb::DbPath(FLAGS_db_paths2, 100l * FLAGS_max_bytes_for_level_base));
+    }
+
 #ifndef ROCKSDB_LITE
     options.ttl = FLAGS_fifo_compaction_ttl;
     options.compaction_options_fifo = CompactionOptionsFIFO(
@@ -3836,6 +3848,14 @@ class Benchmark {
       FLAGS_env->LowerThreadPoolCPUPriority(Env::LOW);
       FLAGS_env->LowerThreadPoolCPUPriority(Env::HIGH);
     }
+    if (FLAGS_enable_set_cpu_prio) {
+      //FLAGS_env->SetPriority(Env::HIGH, -10);
+      //FLAGS_env->SetPriority(Env::LOW, 0);
+      //FLAGS_env->SetPriority(Env::BOTTOM, 10);
+      FLAGS_env->SetPriority(Env::HIGH, -20);
+      FLAGS_env->SetPriority(Env::LOW, 10);
+    }
+
     options.env = FLAGS_env;
     if (FLAGS_sine_write_rate) {
       FLAGS_benchmark_write_rate_limit = static_cast<uint64_t>(SineRate(0));
@@ -6536,6 +6556,7 @@ int db_bench_tool(int argc, char** argv) {
 
   // Note options sanitization may increase thread pool sizes according to
   // max_background_flushes/max_background_compactions/max_background_jobs
+  fprintf(stdout, "db_bench_tool SetBackgroundThreads.\n");
   FLAGS_env->SetBackgroundThreads(FLAGS_num_high_pri_threads,
                                   rocksdb::Env::Priority::HIGH);
   FLAGS_env->SetBackgroundThreads(FLAGS_num_bottom_pri_threads,

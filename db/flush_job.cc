@@ -313,6 +313,7 @@ Status FlushJob::WriteLevel0Table() {
     uint64_t total_num_entries = 0, total_num_deletes = 0;
     uint64_t total_data_size = 0;
     size_t total_memory_usage = 0;
+    //fprintf(stdout, "mems_ size: %ld.\n", mems_.size());
     for (MemTable* m : mems_) {
       ROCKS_LOG_INFO(
           db_options_.info_log,
